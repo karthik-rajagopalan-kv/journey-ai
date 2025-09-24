@@ -1,0 +1,10 @@
+from pydantic import BaseModel
+
+class ImageRequest(BaseModel):
+    prompt: str
+    model: str = "seedream-4-0-250828"
+    sequential_image_generation: str = "disabled"
+    response_format: str = "url"
+    size: str = "2K"
+    stream: bool = False
+    watermark: bool = True
