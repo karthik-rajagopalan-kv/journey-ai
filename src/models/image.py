@@ -7,4 +7,4 @@ class ImageRequest(BaseModel):
     response_format: str = "url"
     size: str = "2K"
     stream: bool = False
-    watermark: bool = True
+    watermark: bool = False
