@@ -51,7 +51,7 @@ async def generate_image(request: ImageRequest):
 @app.post("/journal/chat")
 async def chat(request: ChatRequest):
     chat_service = ChatService(request.session_id)
-    response = chat_service.chat(request.image_description, request.input_message)
+    response = chat_service.chat(request.description, request.input_message)
     if response["type"] == "error":
         raise HTTPException(status_code=500, detail=response["content"])
     return JSONResponse(content=response, status_code=200)

@@ -9,10 +9,10 @@ class ChatService:
         self.memory = RedisChatMessageHistory(session_id=session_id, url="redis://localhost:6379")
         self.agent_executor = build_journal_agent_executor(self.llm)
 
-    def chat(self, image_description: str, input_message: str):
+    def chat(self, description: str, input_message: str):
         try:
             self.memory.add_user_message(input_message)
-            result = self.agent_executor.invoke({"image_desc": image_description, "history": self.memory.messages})
+            result = self.agent_executor.invoke({"desc": description, "history": self.memory.messages})
             return self.__parse_result(result["output"])
         except Exception as e:
             return {"type": "error", "content": str(e)}
