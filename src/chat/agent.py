@@ -135,9 +135,12 @@ class Summarizer:
 
     def summarize_sessions(self, session_ids: list[str]):
         try:
-            system_prompt = """Based on different small journal entries. Write an elaborate journal.\n
+            system_prompt = """Based on different small journal entries. Write a brief journal.\n
             Journal entries: {journal_entries} \n\n
-            ALWAYS return only the journal entry, no other text.
+            ## GUIDELINES:
+            - ALWAYS return only the journal entry, no other text.
+            - DO NOT include dates
+            - ALWAYS write the journal in the first-person perspective.
             """
             journal_entries = []
             for session_id in session_ids:
