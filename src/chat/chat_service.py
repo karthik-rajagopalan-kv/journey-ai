@@ -1,3 +1,4 @@
+from murf import Murf
 from src.llm.ollama import Ollama
 from src.chat.agent import build_journal_agent_executor
 from langchain_community.chat_message_histories import RedisChatMessageHistory
@@ -9,6 +10,7 @@ class ChatService:
         self.llm = Ollama().llm
         self.memory = RedisChatMessageHistory(session_id=session_id, url="redis://localhost:6379")
         self.agent_executor = build_journal_agent_executor(self.llm)
+        self.tts = Murf(api_key="ap2_0e47acd0-061f-436a-a069-9828312a5af9")
 
     def chat(self, description: str, input_message: str):
         try:
@@ -44,11 +46,15 @@ class ChatService:
     def __parse_result(self, result: str):
         if result.find("QUESTION:") != -1:
             result = result[result.find("QUESTION:") + len("QUESTION:") :].strip()
-            response_dict = {"type": "question", "content": result}
+            response_type = "question"
         elif result.find("JOURNAL:") != -1:
             result = result[result.find("JOURNAL:") + len("JOURNAL:") :].strip()
-            response_dict = {"type": "journal", "content": result}
+            response_type = "journal"
         else:
             result = result if len(result.split(":")) < 1 else result.split(":")[1].strip()
-            response_dict = {"type": "response", "content": result}
-        return response_dict
+            response_type = "response"
+        audio_file = self.tts.text_to_speech.generate(
+            text=result,
+            voice_id="en-US-natalie",
+        ).audio_file
+        return {"type": response_type, "content": result, "audio_file": audio_file}

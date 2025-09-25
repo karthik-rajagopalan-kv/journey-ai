@@ -44,15 +44,19 @@ class JournalAgent(BaseSingleActionAgent):
                 "- Ask a question to the user based on the small synopsis of the event to the user to write a journal entry. "
                 "ALWAYS ask questions one by one.\n"
                 "Prefix the question with `QUESTION:`.\n"
-                "- If you have enough information from the user, write a journal entry based on the image description and the answers above. "
+                "- If you have enough information from the user, write a journal entry based on the synopsis and the answers given by the user. "
                 "Prefix the journal entry with `JOURNAL:`.\n"
                 "- If the user has any improvements to the journal entry, include them in the journal entry. "
                 "It should be prefixed with `FOLLOWUP:`.\n"
                 "\n"
                 "## GUIDELINES: \n"
-                "- ALWAYS use `QUESTION:` or `JOURNAL:` or `FOLLOWUP:` to prefix the question, journal entry, or followup. \n"
-                "- DO NOT use any other prefixes or extra text. \n"
-                "- DO NOT use any dates in the journal entry. \n"
+                "- ALWAYS ask friendly and interesting questions depending on the description.\n"
+                "- ALWAYS use `QUESTION:` or `JOURNAL:` or `FOLLOWUP:` to prefix the question, journal entry, or followup.\n"
+                "- DO NOT use any other prefixes or extra text.\n"
+                "- DO NOT use any dates in the journal entry.\n"
+                "- ALWAYS write the journal in first person perpective.\n"
+                "- DO NOT ask same question more than once.\n"
+                "- DO NOT ask more than four questions."
             ),
         )
 
