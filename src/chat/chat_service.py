@@ -1,6 +1,7 @@
 from src.llm.ollama import Ollama
 from src.chat.agent import build_journal_agent_executor
 from langchain_community.chat_message_histories import RedisChatMessageHistory
+import json
 
 
 class ChatService:
@@ -16,6 +17,29 @@ class ChatService:
             return self.__parse_result(result["output"])
         except Exception as e:
             return {"type": "error", "content": str(e)}
+
+    def get_chat_history(self):
+        """
+        Retrieve all chat messages for the current session from Redis.
+        
+        Returns:
+            List of message dictionaries with type, content, and metadata
+        """
+        try:
+            messages = self.memory.messages
+            chat_history = []
+            
+            for message in messages:
+                message_dict = {
+                    "type": "user" if hasattr(message, 'type') and message.type == "human" else "ai",
+                    "content": message.content,
+                    "timestamp": getattr(message, 'timestamp', None)
+                }
+                chat_history.append(message_dict)
+            
+            return chat_history
+        except Exception as e:
+            raise Exception(f"Failed to retrieve chat history: {str(e)}")
 
     def __parse_result(self, result: str):
         if result.find("QUESTION:") != -1:

@@ -5,7 +5,7 @@ from fastapi.responses import JSONResponse
 from dotenv import load_dotenv
 
 from src.chat.chat_service import ChatService
-from src.models.chat import ChatRequest
+from src.models.chat import ChatRequest, ChatHistoryResponse
 from src.models.image import ImageRequest
 from src.models.base64_request import Base64Request
 from src.descriptors.descriptor import Descriptor
@@ -55,6 +55,42 @@ async def chat(request: ChatRequest):
     if response["type"] == "error":
         raise HTTPException(status_code=500, detail=response["content"])
     return JSONResponse(content=response, status_code=200)
+
+@app.get("/chats/{session_id}", response_model=ChatHistoryResponse)
+async def get_chat_history(session_id: str):
+    """
+    Retrieve chat history for a specific session ID from Redis.
+    
+    Args:
+        session_id: The session ID to retrieve chat history for
+        
+    Returns:
+        ChatHistoryResponse containing all messages for the session
+    """
+    try:
+        # Validate session_id
+        if not session_id or not session_id.strip():
+            raise HTTPException(status_code=400, detail="Session ID cannot be empty")
+        
+        # Create ChatService instance to access Redis
+        chat_service = ChatService(session_id.strip())
+        
+        # Get chat history from Redis
+        messages = chat_service.get_chat_history()
+        
+        return ChatHistoryResponse(
+            success=True,
+            session_id=session_id,
+            messages=messages,
+            message_count=len(messages)
+        )
+        
+    except HTTPException:
+        # Re-raise HTTP exceptions
+        raise
+    except Exception as e:
+        # Handle any other unexpected errors
+        raise HTTPException(status_code=500, detail=f"Failed to retrieve chat history: {str(e)}")
 
 @app.post("/descriptions/base64")
 async def describe_base64_media(request: Base64Request):
