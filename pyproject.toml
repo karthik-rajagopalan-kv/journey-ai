@@ -12,6 +12,11 @@ langchain-ollama = "^0.3.8"
 ollama = "^0.5.4"
 langchain = "^0.3.27"
 opencv-python = "^4.12.0.88"
+fastapi = "^0.117.1"
+dotenv = "^0.9.9"
+langchain-community = "^0.3.29"
+redis = "^6.4.0"
+uvicorn = "^0.37.0"
 
 
 [tool.poetry.group.dev.dependencies]

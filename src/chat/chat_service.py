@@ -1,0 +1,30 @@
+from src.llm.ollama import Ollama
+from src.chat.agent import build_journal_agent_executor
+from langchain_community.chat_message_histories import RedisChatMessageHistory
+
+
+class ChatService:
+    def __init__(self, session_id: str):
+        self.llm = Ollama().llm
+        self.memory = RedisChatMessageHistory(session_id=session_id, url="redis://localhost:6379")
+        self.agent_executor = build_journal_agent_executor(self.llm)
+
+    def chat(self, image_description: str, input_message: str):
+        try:
+            self.memory.add_user_message(input_message)
+            result = self.agent_executor.invoke({"image_desc": image_description, "history": self.memory.messages})
+            return self.__parse_result(result["output"])
+        except Exception as e:
+            return {"type": "error", "content": str(e)}
+
+    def __parse_result(self, result: str):
+        if result.find("QUESTION:") != -1:
+            result = result[result.find("QUESTION:") + len("QUESTION:") :].strip()
+            response_dict = {"type": "question", "content": result}
+        elif result.find("JOURNAL:") != -1:
+            result = result[result.find("JOURNAL:") + len("JOURNAL:") :].strip()
+            response_dict = {"type": "journal", "content": result}
+        else:
+            result = result if len(result.split(":")) < 1 else result.split(":")[1].strip()
+            response_dict = {"type": "response", "content": result}
+        return response_dict
