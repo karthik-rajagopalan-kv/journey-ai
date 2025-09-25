@@ -1,7 +1,7 @@
 from pydantic import BaseModel
 
 class ImageRequest(BaseModel):
-    prompt: str
+    session_id: str
     model: str = "seedream-4-0-250828"
     sequential_image_generation: str = "disabled"
     response_format: str = "url"

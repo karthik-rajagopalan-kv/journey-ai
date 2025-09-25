@@ -1,5 +1,7 @@
 import os
+import random
 import requests
+import redis
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import JSONResponse
 from dotenv import load_dotenv
@@ -13,6 +15,7 @@ from src.descriptors.descriptor import Descriptor
 load_dotenv()
 
 app = FastAPI()
+redis_client = redis.Redis(host='localhost', port=6379, db=0)
 
 @app.get("/health")
 async def health():
@@ -24,14 +27,28 @@ async def generate_image(request: ImageRequest):
     if not api_key:
         raise HTTPException(status_code=500, detail="ARK_API_KEY not set in environment variables")
 
+    try:
+        description = redis_client.hget(request.session_id, "description")
+        if not description:
+            raise HTTPException(status_code=404, detail="Description not found for the given session_id")
+        description = description.decode('utf-8')
+    except redis.exceptions.RedisError as e:
+        raise HTTPException(status_code=500, detail=f"Redis error: {str(e)}")
+
+
     headers = {
         "Content-Type": "application/json",
         "Authorization": f"Bearer {api_key}",
     }
 
+    seed = random.randint(0, 1000000)
+
+    prompt = f"You are a whimsical doodle artist. Create a simple, playful, and imaginative doodle based on the following idea. The style should be minimalist, with clean lines and a hand-drawn feel. Think of a quick sketch in a notebook, but with a touch of digital polish. {description}"
+
     data = {
         "model": request.model,
-        "prompt": request.prompt,
+        "prompt": prompt,
+        "seed": seed,
         "sequential_image_generation": request.sequential_image_generation,
         "response_format": request.response_format,
         "size": request.size,
