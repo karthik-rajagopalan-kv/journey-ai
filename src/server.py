@@ -18,6 +18,7 @@ load_dotenv()
 app = FastAPI()
 redis_client = redis.Redis(host="localhost", port=6379, db=0)
 
+
 @app.get("/health")
 async def health():
     return JSONResponse(content={"status": "healthy"}, status_code=200)
@@ -55,7 +56,8 @@ async def generate_image(request: ImageRequest):
         )
         response.raise_for_status()  # Raise an exception for bad status codes
         print("Response:", response.json())
-        return response.json()
+        url = response.json().get("data", [{}])[0].get("url", "")
+        return JSONResponse(content={"url": url}, status_code=200)
     except requests.exceptions.RequestException as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -122,11 +124,11 @@ async def describe_base64_media(request: Base64Request):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/journal/summarize/sessions")
+@app.post("/journal/summarize/sessions")
 async def summarize_sessions(request: SummarizeSessionsRequest):
     summarizer = Summarizer()
     response = summarizer.summarize_sessions(request.session_ids)
-    return JSONResponse(content={"summary": response}, status_code=200)
+    return JSONResponse(content=response, status_code=200)
 
 
 if __name__ == "__main__":

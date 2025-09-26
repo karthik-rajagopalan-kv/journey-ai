@@ -1,4 +1,5 @@
 import uuid
+import requests
 from typing import Any, List, Union
 from langchain.prompts import PromptTemplate
 from langchain_community.chat_message_histories import RedisChatMessageHistory
@@ -9,6 +10,7 @@ from langchain_core.language_models import BaseLLM
 from langchain_core.messages import BaseMessage, SystemMessage
 from redis import Redis
 
+from sessions import SESSIONS_DUMPS
 from src.llm.ollama import Ollama
 
 
@@ -144,7 +146,9 @@ class Summarizer:
             """
             journal_entries = []
             for session_id in session_ids:
-                journal = self.redis_client.get(f"journal:{session_id}")
+                journal = self.redis_client.get(f"journal:{session_id}") or SESSIONS_DUMPS.get(session_id, {}).get(
+                    "text", None
+                )
                 if journal is None:
                     print(f"Journal not found for session id: {session_id}")
                     continue
@@ -152,8 +156,34 @@ class Summarizer:
             prompt = system_prompt.format(
                 journal_entries="\n".join([f"{index+1}. {journal}" for index, journal in enumerate(journal_entries)])
             )
-            response = self.llm.invoke(prompt)
-            return response.strip()
+            response = self.llm.invoke(prompt).strip()
+            return {"summary": response}
         except Exception as e:
             print(f"Error summarizing sessions: {e}")
             return ""
+
+class ChatSummarizer:
+    def __init__(self, session_id: str) -> None:
+        self.llm = Ollama().llm
+        self.memory = RedisChatMessageHistory(session_id=session_id)
+        self.redis_client = self.memory.redis_client
+
+    def summarize_chat(self, synopsis: str):
+        system_prompt = """Based on the chat history and a synopsis of the event. Write a brief journal in less than 500 words.\n
+        Synopsis of the event: {synopsis} \n\n
+        Chat history: {chat_history} \n\n
+        ## GUIDELINES:
+        - ALWAYS return only the journal entry, no other text.
+        - DO NOT include dates
+        - ALWAYS write the journal in the first-person perspective.
+        """
+        chat_history = self.memory.messages
+        if len(chat_history) < 1:
+            return None
+        prompt = system_prompt.format(
+            chat_history="\n".join([f"{message.type}: {message.content}" for message in chat_history]),
+            synopsis=synopsis,
+        )
+        response = self.llm.invoke(prompt).strip()
+        self.redis_client.set(f"journal:{self.memory.session_id}", response)
+        return response

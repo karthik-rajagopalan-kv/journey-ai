@@ -1,6 +1,7 @@
 from murf import Murf
+from sessions import SESSIONS_DUMPS
 from src.llm.ollama import Ollama
-from src.chat.agent import build_journal_agent_executor
+from src.chat.agent import build_journal_agent_executor, ChatSummarizer
 from langchain_community.chat_message_histories import RedisChatMessageHistory
 from src.constants import MURF_API_KEY
 
@@ -12,6 +13,7 @@ class ChatService:
         self.redis_client = self.memory.redis_client
         self.agent_executor = build_journal_agent_executor(self.llm)
         self.tts = Murf(api_key=MURF_API_KEY)
+        self.chat_summarizer = ChatSummarizer(session_id)
 
     def chat(self, description: str, input_message: str):
         try:
@@ -41,14 +43,17 @@ class ChatService:
                     "timestamp": getattr(message, "timestamp", None),
                 }
                 chat_history.append(message_dict)
-
-            return chat_history
+            text = self.redis_client.get(f"journal:{self.memory.session_id}") or SESSIONS_DUMPS.get(
+                self.memory.session_id, {}
+            ).get("text", None)
+            return {"chat_history": chat_history, "text": text}
         except Exception as e:
             raise Exception(f"Failed to retrieve chat history: {str(e)}")
 
     def __parse_result(self, result: str):
         if result.find("QUESTION:") != -1:
             result = result[result.find("QUESTION:") + len("QUESTION:") :].strip()
+            self.chat_summarizer.summarize_chat(result)
             response_type = "question"
         elif result.find("JOURNAL:") != -1:
             result = result[result.find("JOURNAL:") + len("JOURNAL:") :].strip()
@@ -57,7 +62,7 @@ class ChatService:
         else:
             result = result if len(result.split(":")) < 1 else result.split(":")[1].strip()
             response_type = "response"
-            self.__check_and_save_journal_by_session_id(self.memory.session_id, result)
+            self.chat_summarizer.summarize_chat(result)
 
         audio_file = self.tts.text_to_speech.generate(
             text=result,
@@ -67,9 +72,6 @@ class ChatService:
 
     def __check_and_save_journal_by_session_id(self, session_id: str, journal: str):
         try:
-            journal_cache = self.redis_client.get(f"journal:{session_id}")
-            if journal_cache is None:
-                print(f"Journal not found for session id: {session_id}")
-                self.redis_client.set(f"journal:{session_id}", journal)
+            self.redis_client.set(f"journal:{session_id}", journal)
         except Exception as e:
             print(f"Failed to check and save journal by session id: {session_id} {e}")
