@@ -7,6 +7,7 @@ from langchain.schema import AgentAction, AgentFinish
 from langchain_core.callbacks import Callbacks
 from langchain_core.language_models import BaseLLM
 from langchain_core.messages import BaseMessage, SystemMessage
+from redis import Redis
 
 from src.llm.ollama import Ollama
 
@@ -49,19 +50,19 @@ class JournalAgent(BaseSingleActionAgent):
                 "- If the user has any improvements to the journal entry, include them in the journal entry. "
                 "It should be prefixed with `FOLLOWUP:`.\n"
                 "\n"
-                "## GUIDELINES: \n"
-                "- ALWAYS ask friendly and interesting questions depending on the description.\n"
-                "- ALWAYS use `QUESTION:` or `JOURNAL:` or `FOLLOWUP:` to prefix the question, journal entry, or followup.\n"
-                "- DO NOT use any other prefixes or extra text.\n"
-                "- DO NOT use any dates in the journal entry.\n"
-                "- ALWAYS write the journal in first person perpective.\n"
-                "- DO NOT ask same question more than once.\n"
-                "- DO NOT ask more than four questions."
+                "## GUIDELINES:\n"
+                "- ALWAYS ask friendly, engaging, and context-aware questions based on the description.\n"
+                "- ALWAYS prefix with exactly one of: `QUESTION:`\n"
+                "- DO NOT use any other prefixes, labels, or extra text.\n"
+                "- DO NOT include dates in the journal entry.\n"
+                "- ALWAYS write the journal in the first-person perspective.\n"
+                "- ALWAYS ask atleast 2 questions.\n"
+                "- NEVER repeat questions.\n"
             ),
         )
 
         prompt = prompt_template.format(desc=desc)
-        messages: List[BaseMessage] = [SystemMessage(content=prompt)]+history
+        messages: List[BaseMessage] = [SystemMessage(content=prompt)] + history
         llm_output = self.llm.invoke(messages)
         return AgentFinish(return_values={"output": llm_output.strip()}, log=llm_output.strip())
 
@@ -85,6 +86,7 @@ def build_journal_agent_executor(llm):
 
 def run(image_url: str):
     from src.descriptors.descriptor import Descriptor
+
     descriptor = Descriptor()
     llm: BaseLLM = Ollama().llm
     memory = RedisChatMessageHistory(session_id=str(uuid.uuid4()), url="redis://localhost:6379")
@@ -104,16 +106,16 @@ def run(image_url: str):
         result = agent_exec.invoke({"desc": desc, "history": memory.messages})  # can be empty; user input comes later
 
         if result["output"].find("QUESTION:") != -1:
-            question = result["output"][result["output"].find("QUESTION:") + len("QUESTION:"):].strip()
+            question = result["output"][result["output"].find("QUESTION:") + len("QUESTION:") :].strip()
             print("Q:", question)
             input_message = input("> ")
             qa_history.append((question, input_message))
             memory.add_ai_message(question)
         elif result["output"].find("FOLLOWUP:") != -1:
-            journal = result["output"][result["output"].find("FOLLOWUP:") + len("FOLLOWUP:"):].strip()
+            journal = result["output"][result["output"].find("FOLLOWUP:") + len("FOLLOWUP:") :].strip()
             memory.add_ai_message(journal)
         elif result["output"].find("JOURNAL:") != -1:
-            journal = result["output"][result["output"].find("JOURNAL:") + len("JOURNAL:"):].strip()
+            journal = result["output"][result["output"].find("JOURNAL:") + len("JOURNAL:") :].strip()
             memory.add_ai_message(journal)
             confirm = input("Do you want to continue? (y/n)")
             print("Confirm:", confirm)
@@ -124,3 +126,34 @@ def run(image_url: str):
     print("---------------------------------------------------")
     print("Journal:", journal)
     print("---------------------------------------------------")
+
+
+class Summarizer:
+    def __init__(self) -> None:
+        self.llm = Ollama().llm
+        self.redis_client = Redis()
+
+    def summarize_sessions(self, session_ids: list[str]):
+        try:
+            system_prompt = """Based on different small journal entries. Write a brief journal.\n
+            Journal entries: {journal_entries} \n\n
+            ## GUIDELINES:
+            - ALWAYS return only the journal entry, no other text.
+            - DO NOT include dates
+            - ALWAYS write the journal in the first-person perspective.
+            """
+            journal_entries = []
+            for session_id in session_ids:
+                journal = self.redis_client.get(f"journal:{session_id}")
+                if journal is None:
+                    print(f"Journal not found for session id: {session_id}")
+                    continue
+                journal_entries.append(journal)
+            prompt = system_prompt.format(
+                journal_entries="\n".join([f"{index+1}. {journal}" for index, journal in enumerate(journal_entries)])
+            )
+            response = self.llm.invoke(prompt)
+            return response.strip()
+        except Exception as e:
+            print(f"Error summarizing sessions: {e}")
+            return ""

@@ -16,3 +16,6 @@ class ChatHistoryResponse(BaseModel):
     session_id: str
     messages: List[Dict[str, Any]]
     message_count: int
+
+class SummarizeSessionsRequest(BaseModel):
+    session_ids: List[str]
